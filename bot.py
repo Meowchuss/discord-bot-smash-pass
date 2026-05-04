@@ -17,21 +17,17 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!meow", intents=intents)
 
 def get_all_champions():
-    url = "https://ddragon.leagueoflegends.com/cdn/14.1.1/data/fr_FR/champion.json"
-    response = requests.get(url)
-    data = response.json()
+    version = requests.get("https://ddragon.leagueoflegends.com/api/versions.json").json()[0]
+    
+    url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/fr_FR/champion.json"
+    data = requests.get(url).json()
 
     champions = []
 
     for champ in data["data"].values():
-        name = champ["name"]
-        key = champ["id"]  # ex: Ahri, Garen
-
-        image_url = f"https://ddragon.leagueoflegends.com/cdn/img/champion/splash/{key}_0.jpg"
-
         champions.append({
-            "name": name,
-            "image": image_url
+            "name": champ["name"],
+            "image": f"https://ddragon.leagueoflegends.com/cdn/img/champion/splash/{champ['name']}_0.jpg"
         })
 
     return champions
@@ -48,7 +44,7 @@ async def on_ready():
     print(f"Connecté en tant que {bot.user}")
     smash_or_pass.start()
 
-@tasks.loop(minutes=1)
+@tasks.loop(hours=6)
 async def smash_or_pass():
     global champions_restants
 
@@ -66,7 +62,10 @@ async def smash_or_pass():
 
     embed = discord.Embed(
         title=f"💘 Smash or Pass — {champ['name']}",
-        description="Vote avec ✅ pour SMASH ou ❌ pour PASS !",
+        description=(
+        "Vote avec ✅ pour SMASH ou ❌ pour PASS !\n\n"
+        f"📊 Champion #{len(champions) - len(champions_restants)} / {len(champions)}"
+    ),
         color=discord.Color.purple(),
         timestamp=now  # ⬅️ affiche date + heure
     )
