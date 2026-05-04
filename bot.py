@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")  
+CHANNEL = int(os.getenv("CHANNEL_ID"))  # Convert to integer
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -32,7 +32,7 @@ async def on_ready():
 
 @tasks.loop(minutes=1)  # fréquence
 async def smash_or_pass():
-    channel = bot.get_channel(CHANNEL_ID)
+    channel = bot.get_channel(CHANNEL)
 
     champ = random.choice(champions)
 
