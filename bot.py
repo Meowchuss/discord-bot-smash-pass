@@ -5,6 +5,10 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import requests
+import json
+import os
+
+SAVE_FILE = "champions_state.json"
 
 
 load_dotenv()
@@ -32,17 +36,57 @@ def get_all_champions():
 
     return champions
 
+def sauvegarder():
+    with open(SAVE_FILE, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "deja_tires": [
+                    champ["name"]
+                    for champ in champions_restants
+                ]
+            },
+            f,
+            indent=4,
+            ensure_ascii=False
+        )
+def charger():
+    global champions_restants
+
+    deja_tires = set(data["deja_tires"])
+
+    champions_restants = [
+        champ
+        for champ in champions
+        if champ["name"] not in deja_tires
+    ]
+
+    if not os.path.exists(SAVE_FILE):
+        champions_restants = champions.copy()
+        return
+
+    with open(SAVE_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    noms_restants = set(data["champions_restants"])
+
+    champions_restants = [
+        champ
+        for champ in champions
+        if champ["name"] in noms_restants
+    ]
 # Exemple de base (tu peux remplacer par API ou JSON)
 champions = get_all_champions()
 
 # Liste dynamique (copie)
-champions_restants = champions.copy()
+champions_restants = []
+charger()
 
 
 @bot.event
 async def on_ready():
     print(f"Connecté en tant que {bot.user}")
-    smash_or_pass.start()
+    if not smash_or_pass.is_running():
+        smash_or_pass.start()
 
 @tasks.loop(hours=6)
 async def smash_or_pass():
@@ -55,7 +99,7 @@ async def smash_or_pass():
         champions_restants = champions.copy()
 
     champ = random.choice(champions_restants)
-    champions_restants.remove(champ)  # ❌ on retire le champion
+    
 
     # 🕒 Date actuelle
     now = datetime.now()
@@ -74,6 +118,8 @@ async def smash_or_pass():
     embed.set_footer(text="League of Legends • Smash or Pass")
 
     message = await channel.send(embed=embed)
+    champions_restants.remove(champ)  # ❌ on retire le champion
+    sauvegarder()  # 💾 on sauvegarde l'état
 
     # Réactions
     await message.add_reaction("✅")
@@ -86,5 +132,6 @@ async def smash_or_pass():
     )
 
     await thread.send("Débattez ici 👇")
+
 
 bot.run(TOKEN)
