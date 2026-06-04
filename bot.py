@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 from datetime import time
 from utils import get_all_champions, load_state, save_state, ensure_today
+from keep_alive import keep_alive
 
 #variables globales et fonctions de gestion de l'état des champions tirés
 
@@ -79,6 +80,7 @@ async def envoyer_smash_or_pass(bot, channel):
 # Exemple de base (tu peux remplacer par API ou JSON)
 champions = get_all_champions()
 
+keep_alive() # démarre le serveur Flask pour garder le bot actif sur Render
 
 @bot.event
 async def on_ready():
