@@ -7,9 +7,19 @@ from datetime import datetime
 import requests
 import json
 import os
+from datetime import time
 
+
+#variables globales et fonctions de gestion de l'état des champions tirés
 SAVE_FILE = "champions_state.json"
 
+
+HORAIRES = [
+    time(hour=4),
+    time(hour=10),
+    time(hour=16),
+    time(hour=22)
+]
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -17,6 +27,7 @@ CHANNEL = int(os.getenv("CHANNEL_ID"))  # Convert to integer
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix="!meow", intents=intents)
 
@@ -36,60 +47,67 @@ def get_all_champions():
 
     return champions
 
-def sauvegarder():
+def sauvegarder(champion):
+    if os.path.exists(SAVE_FILE):
+
+        with open(SAVE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    else:
+        data = {"deja_tires": []}
+
+    if champion["name"] not in data["deja_tires"]:
+        data["deja_tires"].append(champion["name"])
+
     with open(SAVE_FILE, "w", encoding="utf-8") as f:
         json.dump(
-            {
-                "deja_tires": [
-                    champ["name"]
-                    for champ in champions_restants
-                ]
-            },
+            data,
             f,
             indent=4,
             ensure_ascii=False
         )
+
 def charger():
     global champions_restants
 
-    deja_tires = set(data["deja_tires"])
-
-    champions_restants = [
-        champ
-        for champ in champions
-        if champ["name"] not in deja_tires
-    ]
-
+    # Premier lancement du bot
     if not os.path.exists(SAVE_FILE):
         champions_restants = champions.copy()
+
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                {"deja_tires": []},
+                f,
+                indent=4,
+                ensure_ascii=False
+            )
+
         return
 
     with open(SAVE_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    noms_restants = set(data["champions_restants"])
+    deja_tires = set(data.get("deja_tires", []))
 
     champions_restants = [
-        champ
-        for champ in champions
-        if champ["name"] in noms_restants
+        champion
+        for champion in champions
+        if champion["name"] not in deja_tires
     ]
-# Exemple de base (tu peux remplacer par API ou JSON)
-champions = get_all_champions()
 
-# Liste dynamique (copie)
-champions_restants = []
-charger()
+    # Tous les champions ont été utilisés
+    if not champions_restants:
+        champions_restants = champions.copy()
 
-
-@bot.event
-async def on_ready():
-    print(f"Connecté en tant que {bot.user}")
-    if not smash_or_pass.is_running():
-        smash_or_pass.start()
-
-@tasks.loop(hours=6)
-async def smash_or_pass():
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(
+                {"deja_tires": []},
+                f,
+                indent=4,
+                ensure_ascii=False
+            )
+    
+async def envoyer_smash_or_pass():
     global champions_restants
 
     channel = bot.get_channel(CHANNEL)
@@ -119,7 +137,7 @@ async def smash_or_pass():
 
     message = await channel.send(embed=embed)
     champions_restants.remove(champ)  # ❌ on retire le champion
-    sauvegarder()  # 💾 on sauvegarde l'état
+    sauvegarder(champ)  # 💾 on sauvegarde l'état
 
     # Réactions
     await message.add_reaction("✅")
@@ -132,6 +150,29 @@ async def smash_or_pass():
     )
 
     await thread.send("Débattez ici 👇")
+
+
+# Exemple de base (tu peux remplacer par API ou JSON)
+champions = get_all_champions()
+
+# Liste dynamique (copie)
+champions_restants = []
+charger()
+
+
+@bot.event
+async def on_ready():
+    print(f"Connecté en tant que {bot.user}")
+    await bot.load_extension("commands.verification_role")
+    synced = await bot.tree.sync()
+    print(f"{len(synced)} commandes synchronisées")
+
+    if not smash_or_pass.is_running():
+        smash_or_pass.start()
+
+@tasks.loop(time=HORAIRES)
+async def smash_or_pass():
+    await envoyer_smash_or_pass()
 
 
 bot.run(TOKEN)
