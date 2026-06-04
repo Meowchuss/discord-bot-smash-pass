@@ -11,20 +11,14 @@ from datetime import time
 
 
 #variables globales et fonctions de gestion de l'état des champions tirés
-SAVE_FILE = "champions_state.json"
 
+STATE_FILE = "smash_state.json"
 
-HORAIRES = [
-    time(hour=6),
-    time(hour=10),
-    time(hour=14),
-    time(hour=18),
-    time(hour=22)
-]
+HORAIRES = [6, 10, 14, 18, 22]
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL = int(os.getenv("CHANNEL_ID"))  # Convert to integer
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))  # Convert to integer
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -47,6 +41,31 @@ def get_all_champions():
         })
 
     return champions
+
+def load_state():
+    if not os.path.exists(STATE_FILE):
+        return {
+            "used_champions": [],
+            "days": {}
+        }
+
+    with open(STATE_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_state(state):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=4, ensure_ascii=False)
+
+def ensure_today(state):
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    if today not in state["days"]:
+        state["days"][today] = {
+            str(h): False for h in HORAIRES
+        }
+
+    return today
+
 
 def sauvegarder(champion):
     if os.path.exists(SAVE_FILE):
@@ -108,20 +127,21 @@ def charger():
                 ensure_ascii=False
             )
     
-async def envoyer_smash_or_pass():
-    global champions_restants
+async def envoyer_smash_or_pass(bot, channel):
+    global champions
 
-    channel = bot.get_channel(CHANNEL)
+    state = load_state()
+    today = ensure_today(state)
 
-    # 🔄 Reset si tous les champions ont été utilisés
-    if not champions_restants:
-        champions_restants = champions.copy()
+    # 🔄 reset champions si vide
+    used = set(state["used_champions"])
+    available = [c for c in champions if c["name"] not in used]
 
-    champ = random.choice(champions_restants)
-    
+    if not available:
+        state["used_champions"] = []
+        available = champions.copy()
 
-    # 🕒 Date actuelle
-    now = datetime.now()
+    champ = random.choice(available)
 
     embed = discord.Embed(
         title=f"💘 Smash or Pass — {champ['name']}",
@@ -130,15 +150,14 @@ async def envoyer_smash_or_pass():
         f"📊 Champion #{len(champions) - len(champions_restants)} / {len(champions)}"
     ),
         color=discord.Color.purple(),
-        timestamp=now  # ⬅️ affiche date + heure
+        timestamp=datetime.now()  # ⬅️ affiche date + heure
     )
 
     embed.set_image(url=champ["image"])
     embed.set_footer(text="League of Legends • Smash or Pass")
 
     message = await channel.send(embed=embed)
-    champions_restants.remove(champ)  # ❌ on retire le champion
-    sauvegarder(champ)  # 💾 on sauvegarde l'état
+    
 
     # Réactions
     await message.add_reaction("✅")
@@ -149,8 +168,13 @@ async def envoyer_smash_or_pass():
         name=f"{champ['name']} — Smash or Pass",
         auto_archive_duration=1440
     )
-
     await thread.send("Débattez ici 👇")
+
+
+     # 💾 update state APRÈS succès
+    state["used_champions"].append(champ["name"])
+    state["days"][today][str(datetime.now().hour)] = True
+    save_state(state)
 
 
 # Exemple de base (tu peux remplacer par API ou JSON)
@@ -161,6 +185,7 @@ champions_restants = []
 charger()
 
 
+
 @bot.event
 async def on_ready():
     print(f"Connecté en tant que {bot.user}")
@@ -168,12 +193,28 @@ async def on_ready():
     synced = await bot.tree.sync()
     print(f"{len(synced)} commandes synchronisées")
 
-    if not smash_or_pass.is_running():
-        smash_or_pass.start()
+    if not smash_loop.is_running():
+        smash_loop.start()
 
-@tasks.loop(time=HORAIRES)
-async def smash_or_pass():
-    await envoyer_smash_or_pass()
+@tasks.loop(minutes=1)
+async def smash_loop():
+    now = datetime.now()
+    hour = now.hour
+
+    if hour not in HORAIRES:
+        return
+
+    state = load_state()
+    today = ensure_today(state)
+
+    # ❌ déjà envoyé ?
+    if state["days"][today].get(str(hour), False):
+        return
+
+    channel = bot.get_channel(CHANNEL_ID)
+
+    if channel:
+        await envoyer_smash_or_pass(bot, channel)
 
 
 bot.run(TOKEN)
