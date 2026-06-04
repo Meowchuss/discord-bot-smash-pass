@@ -4,11 +4,9 @@ import random
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-import requests
-import json
 import os
 from datetime import time
-
+from utils import get_all_champions, load_state, save_state, ensure_today
 
 #variables globales et fonctions de gestion de l'état des champions tirés
 
@@ -26,106 +24,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!meow", intents=intents)
 
-def get_all_champions():
-    version = requests.get("https://ddragon.leagueoflegends.com/api/versions.json").json()[0]
-    
-    url = f"https://ddragon.leagueoflegends.com/cdn/{version}/data/fr_FR/champion.json"
-    data = requests.get(url).json()
 
-    champions = []
-
-    for champ in data["data"].values():
-        champions.append({
-            "name": champ["name"],
-            "image": f"https://ddragon.leagueoflegends.com/cdn/img/champion/splash/{champ['name']}_0.jpg"
-        })
-
-    return champions
-
-def load_state():
-    if not os.path.exists(STATE_FILE):
-        return {
-            "used_champions": [],
-            "days": {}
-        }
-
-    with open(STATE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_state(state):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=4, ensure_ascii=False)
-
-def ensure_today(state):
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    if today not in state["days"]:
-        state["days"][today] = {
-            str(h): False for h in HORAIRES
-        }
-
-    return today
-
-
-def sauvegarder(champion):
-    if os.path.exists(SAVE_FILE):
-
-        with open(SAVE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-    else:
-        data = {"deja_tires": []}
-
-    if champion["name"] not in data["deja_tires"]:
-        data["deja_tires"].append(champion["name"])
-
-    with open(SAVE_FILE, "w", encoding="utf-8") as f:
-        json.dump(
-            data,
-            f,
-            indent=4,
-            ensure_ascii=False
-        )
-
-def charger():
-    global champions_restants
-
-    # Premier lancement du bot
-    if not os.path.exists(SAVE_FILE):
-        champions_restants = champions.copy()
-
-        with open(SAVE_FILE, "w", encoding="utf-8") as f:
-            json.dump(
-                {"deja_tires": []},
-                f,
-                indent=4,
-                ensure_ascii=False
-            )
-
-        return
-
-    with open(SAVE_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    deja_tires = set(data.get("deja_tires", []))
-
-    champions_restants = [
-        champion
-        for champion in champions
-        if champion["name"] not in deja_tires
-    ]
-
-    # Tous les champions ont été utilisés
-    if not champions_restants:
-        champions_restants = champions.copy()
-
-        with open(SAVE_FILE, "w", encoding="utf-8") as f:
-            json.dump(
-                {"deja_tires": []},
-                f,
-                indent=4,
-                ensure_ascii=False
-            )
     
 async def envoyer_smash_or_pass(bot, channel):
     global champions
@@ -147,7 +46,7 @@ async def envoyer_smash_or_pass(bot, channel):
         title=f"💘 Smash or Pass — {champ['name']}",
         description=(
         "Vote avec ✅ pour SMASH ou ❌ pour PASS !\n\n"
-        f"📊 Champion #{len(champions) - len(champions_restants)} / {len(champions)}"
+        f"📊 Champion #{len(champions) - len(available)} / {len(champions)}"
     ),
         color=discord.Color.purple(),
         timestamp=datetime.now()  # ⬅️ affiche date + heure
@@ -180,11 +79,6 @@ async def envoyer_smash_or_pass(bot, channel):
 # Exemple de base (tu peux remplacer par API ou JSON)
 champions = get_all_champions()
 
-# Liste dynamique (copie)
-champions_restants = []
-charger()
-
-
 
 @bot.event
 async def on_ready():
@@ -216,5 +110,5 @@ async def smash_loop():
     if channel:
         await envoyer_smash_or_pass(bot, channel)
 
-
-bot.run(TOKEN)
+if __name__ == "__main__":
+    bot.run(TOKEN)

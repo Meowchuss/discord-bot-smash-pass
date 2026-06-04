@@ -1,0 +1,14 @@
+{
+    "used_champions": [
+        "Leona"
+    ],
+    "days": {
+        "2026-06-04": {
+            "6": false,
+            "10": false,
+            "14": false,
+            "18": false,
+            "22": true
+        }
+    }
+}
