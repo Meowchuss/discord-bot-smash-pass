@@ -1,8 +1,8 @@
 import requests
 import json
 import os
-from datetime import time
-import datetime
+from datetime import datetime
+
 
 
 STATE_FILE = "smash_state.json"
@@ -40,7 +40,7 @@ def save_state(state):
         json.dump(state, f, indent=4, ensure_ascii=False)
 
 def ensure_today(state):
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d")
 
     if today not in state["days"]:
         state["days"][today] = {
