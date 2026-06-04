@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.app_commands import AppCommandError
 import io
 
 class PaginationView(discord.ui.View):
@@ -43,6 +44,8 @@ class VerificationRole(commands.Cog):
         role="Rôle à vérifier",
         fichier="Envoyer aussi un fichier .txt"
     )
+
+    @app_commands.checks.has_permissions(manage_roles=True)
     async def verification_role(
         self,
         interaction: discord.Interaction,
@@ -92,6 +95,14 @@ class VerificationRole(commands.Cog):
             )
 
             await interaction.followup.send(file=file)
+            
+    @verification_role.error
+    async def verification_role_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.errors.MissingPermissions):
+            await interaction.response.send_message(
+                "❌ Tu n'as pas la permission d'utiliser cette commande.",
+                ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(

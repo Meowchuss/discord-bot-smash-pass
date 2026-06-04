@@ -15,9 +15,10 @@ SAVE_FILE = "champions_state.json"
 
 
 HORAIRES = [
-    time(hour=4),
+    time(hour=6),
     time(hour=10),
-    time(hour=16),
+    time(hour=14),
+    time(hour=18),
     time(hour=22)
 ]
 
